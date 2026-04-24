@@ -53,7 +53,7 @@ DB_NAME=payment_db
 3. Create database
 
 ```
-CREATE DATABASE payment_db;
+python setup.py
 ```
 
 4. Run server
