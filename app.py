@@ -335,6 +335,66 @@ def get_transactions():
 
 @app.route('/api/v1/transactions/<txn_id>', methods=['GET'])
 def get_transaction(txn_id):
+    """
+    Get Transaction Details
+    ---
+    tags:
+      - Transactions
+    parameters:
+      - name: txn_id
+        in: path
+        type: string
+        required: true
+        description: Transaction ID
+    responses:
+      200:
+        description: Transaction details retrieved successfully
+        schema:
+          type: object
+          properties:
+            transaction:
+              type: object
+              properties:
+                id:
+                  type: string
+                amount:
+                  type: number
+                currency:
+                  type: string
+                status:
+                  type: string
+                created_at:
+                  type: string
+                  format: date-time
+            merchant:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+            events:
+              type: array
+              items:
+                type: object
+                properties:
+                  event_id:
+                    type: string
+                  type:
+                    type: string
+                  amount:
+                    type: number
+                  currency:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+      404:
+        description: Transaction not found
+      500:
+        description: Internal server error
+    """
     db = get_db()
 
     try:
