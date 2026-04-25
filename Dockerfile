@@ -29,4 +29,4 @@ COPY . .
 EXPOSE 5000
 
 # Define the entry point for our container - the starting point for our app
-CMD ["sh", "-c", "python setup.py && gunicorn main:app"]
+CMD ["gunicorn", "main:app"]
