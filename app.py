@@ -148,17 +148,6 @@ def ingest_event():
 
     upsert_merchant(db, data)
 
-    # Check for duplicate event_id if provided
-    print(data['event_id'])
-    if 'event_id' in data:
-        existing = db.query(Event).filter_by(event_id=data['event_id']).first()
-        print(existing)
-        if existing:
-            return success(
-                data={"event_id": existing.event_id},
-                message="duplicate ignored"
-            )
-    
     event = Event(
         event_id=data.get('event_id'),
         transaction_id=data["transaction_id"],
