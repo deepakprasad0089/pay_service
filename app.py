@@ -166,11 +166,12 @@ def ingest_event():
             event_data['timestamp'] = parsed_ts
 
     event = Event(**event_data)
-
+    print(event)
     try:
         db.add(event)
         db.flush()  
     except IntegrityError:
+        db.add(event)
         db.rollback()
 
         existing = db.query(Event).filter_by(
