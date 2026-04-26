@@ -126,6 +126,8 @@ def ingest_event():
             merchant_name: {type: string}
             amount: {type: number}
             currency: {type: string}
+            event_id: {type: string}
+            timestamp: {type: string, format: date-time}
     responses:
       200:
         description: success or duplicate
@@ -146,13 +148,24 @@ def ingest_event():
 
     upsert_merchant(db, data)
 
+    # Check for duplicate event_id if provided
+    print(data['event_id'])
+    if 'event_id' in data:
+        existing = db.query(Event).filter_by(event_id=data['event_id']).first()
+        if existing:
+            return success(
+                data={"event_id": existing.event_id},
+                message="duplicate ignored"
+            )
     
     event = Event(
+        event_id=data.get('event_id'),
         transaction_id=data["transaction_id"],
         merchant_id=data["merchant_id"],
         event_type=data["event_type"],
         amount=data["amount"],
-        currency=data["currency"]
+        currency=data["currency"],
+        timestamp=parse_date(data.get('timestamp')) if data.get('timestamp') else None
     )
 
     try:
@@ -494,6 +507,7 @@ def summary():
 
         # -------- AGGREGATION --------
         select_fields.append(func.count().label("count"))
+        select_fields.append(func.sum(Transaction.amount).label("total_amount"))
 
         query = db.query(*select_fields)
 
@@ -540,17 +554,57 @@ def discrepancies():
     db = get_db()
 
     try:
-        data = db.query(Transaction).filter(
+        discrepancies = []
+
+        # Processed but not settled
+        processed_not_settled = db.query(Transaction).filter(
             Transaction.status == 'payment_processed',
             ~db.query(Event).filter(
-    Event.transaction_id == Transaction.id,
-    Event.event_type == 'settled'
-).exists()
+                Event.transaction_id == Transaction.id,
+                Event.event_type == 'settled'
+            ).exists()
         ).all()
 
-        return success([
-            {"id": t.id, "status": t.status} for t in data
-        ])
+        for t in processed_not_settled:
+            discrepancies.append({
+                "id": t.id,
+                "reason": "payment_processed but no settled event"
+            })
+
+        # Failed but settled
+        failed_settled = db.query(Transaction).filter(
+            Transaction.status == 'payment_failed',
+            db.query(Event).filter(
+                Event.transaction_id == Transaction.id,
+                Event.event_type == 'settled'
+            ).exists()
+        ).all()
+
+        for t in failed_settled:
+            discrepancies.append({
+                "id": t.id,
+                "reason": "payment_failed but has settled event"
+            })
+
+        # Settled without processed (invalid transition)
+        settled_no_processed = db.query(Transaction).filter(
+            db.query(Event).filter(
+                Event.transaction_id == Transaction.id,
+                Event.event_type == 'settled'
+            ).exists(),
+            ~db.query(Event).filter(
+                Event.transaction_id == Transaction.id,
+                Event.event_type == 'payment_processed'
+            ).exists()
+        ).all()
+
+        for t in settled_no_processed:
+            discrepancies.append({
+                "id": t.id,
+                "reason": "settled event exists but no payment_processed event"
+            })
+
+        return success(discrepancies)
 
     except Exception:
         return error("internal server error", 500)
