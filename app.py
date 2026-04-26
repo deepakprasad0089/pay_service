@@ -131,12 +131,31 @@ def ingest_event():
             timestamp: {type: string, format: date-time}
     responses:
       200:
-        description: success or duplicate
+        description: Event processed successfully or duplicate ignored
+        schema:
+          type: object
+          properties:
+            data:
+              type: object
+              properties:
+                event_id:
+                  type: string
+                transaction_id:
+                  type: string
+                event_type:
+                  type: string
+            message:
+              type: string
       400:
-        description: invalid input
+        description: Invalid input
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
       500:
-        description: server error
-    """
+        description: Internal server error
+            """
     data = request.json
     if not data:
         return error("request body required")
@@ -145,17 +164,17 @@ def ingest_event():
     if msg:
         return error(msg)
 
-    print(f"[DEBUG] Received event data: {data}")
+    
 
     db = get_db()
 
     upsert_merchant(db, data)
     
     
-    print(f"[DEBUG] Upserting transaction for txn_id: {data['transaction_id']}")
+    
     upsert_transaction(db, data)
     db.flush()  # Flush transaction to database before inserting event
-    print(f"[DEBUG] Transaction flushed to database")
+    
 
     
     event_data = {
@@ -178,14 +197,14 @@ def ingest_event():
             event_data['timestamp'] = parsed_ts
 
     event = Event(**event_data)
-    print(f"[DEBUG] Created event object: event_id={event.event_id}, txn_id={event.transaction_id}, type={event.event_type}")
+    
     
     try:
         db.add(event)
         db.flush()
-        print(f"[DEBUG] Event inserted successfully: {event.event_id}")
+        
     except IntegrityError as e:
-        print(f"[DEBUG] IntegrityError caught: {e}")
+        
         db.rollback()
 
         existing = db.query(Event).filter_by(
@@ -193,7 +212,7 @@ def ingest_event():
             event_type=data["event_type"]
         ).first()
 
-        print(f"[DEBUG] Found existing event: {existing.event_id if existing else None}")
+        
         return success(
             data={"event_id": existing.event_id if existing else None},
             message="duplicate ignored"
@@ -201,7 +220,7 @@ def ingest_event():
 
     
     db.commit()
-    print(f"[DEBUG] Transaction committed successfully")
+    
 
     return success(
         data={
@@ -246,8 +265,41 @@ def get_transactions():
         description: "cursor format = cursor"
     responses:
       200:
-        description: paginated transactions
-    """
+        description: Paginated transactions
+        schema:
+          type: object
+          properties:
+            transactions:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  merchant_id:
+                    type: string
+                  amount:
+                    type: number
+                  currency:
+                    type: string
+                  status:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
+            next_cursor:
+              type: string
+              nullable: true
+      400:
+        description: Invalid query params
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+      500:
+        description: Internal server error
+            """
     db = get_db()
 
     try:
@@ -491,8 +543,31 @@ def summary():
         format: date-time
     responses:
       200:
-        description: summary data
-    """
+        description: Summary grouped by dimensions
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              merchant_id:
+                type: string
+                nullable: true
+              status:
+                type: string
+                nullable: true
+              date:
+                type: string
+                format: date
+                nullable: true
+              count:
+                type: integer
+              total_amount:
+                type: number
+      400:
+        description: Invalid request
+      500:
+        description: Internal server error
+            """
     db = get_db()
 
     try:
@@ -559,10 +634,19 @@ def discrepancies():
       - Reconciliation
     responses:
       200:
-        description: discrepancy list
+        description: List of discrepancies
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              reason:
+                type: string
       500:
-        description: server error
-    """
+        description: Internal server error
+            """
 
     db = get_db()
 
