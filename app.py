@@ -150,6 +150,10 @@ def ingest_event():
     db = get_db()
 
     upsert_merchant(db, data)
+    
+    
+    print(f"[DEBUG] Upserting transaction for txn_id: {data['transaction_id']}")
+    upsert_transaction(db, data)
 
     
     event_data = {
@@ -192,9 +196,6 @@ def ingest_event():
             data={"event_id": existing.event_id if existing else None},
             message="duplicate ignored"
         )
-
-    print(f"[DEBUG] Upserting transaction for txn_id: {data['transaction_id']}")
-    upsert_transaction(db, data)
 
     
     db.commit()
