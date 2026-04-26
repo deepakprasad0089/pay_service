@@ -154,6 +154,8 @@ def ingest_event():
     
     print(f"[DEBUG] Upserting transaction for txn_id: {data['transaction_id']}")
     upsert_transaction(db, data)
+    db.flush()  # Flush transaction to database before inserting event
+    print(f"[DEBUG] Transaction flushed to database")
 
     
     event_data = {
