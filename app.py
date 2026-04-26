@@ -148,15 +148,24 @@ def ingest_event():
 
     upsert_merchant(db, data)
 
-    event = Event(
-        event_id=data.get('event_id'),
-        transaction_id=data["transaction_id"],
-        merchant_id=data["merchant_id"],
-        event_type=data["event_type"],
-        amount=data["amount"],
-        currency=data["currency"],
-        timestamp=parse_date(data.get('timestamp')) if data.get('timestamp') else None
-    )
+    
+    event_data = {
+        "transaction_id": data["transaction_id"],
+        "merchant_id": data["merchant_id"],
+        "event_type": data["event_type"],
+        "amount": data["amount"],
+        "currency": data["currency"]
+    }
+    
+    if 'event_id' in data:
+        event_data['event_id'] = data['event_id']
+    
+    if 'timestamp' in data and data['timestamp']:
+        parsed_ts = parse_date(data['timestamp'])
+        if parsed_ts:
+            event_data['timestamp'] = parsed_ts
+
+    event = Event(**event_data)
 
     try:
         db.add(event)
