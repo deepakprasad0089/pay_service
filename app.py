@@ -152,6 +152,7 @@ def ingest_event():
     print(data['event_id'])
     if 'event_id' in data:
         existing = db.query(Event).filter_by(event_id=data['event_id']).first()
+        print(existing)
         if existing:
             return success(
                 data={"event_id": existing.event_id},
