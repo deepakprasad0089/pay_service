@@ -6,6 +6,7 @@ from sqlalchemy import func, and_, or_
 from db import SessionLocal
 from models import Merchant, Transaction, Event
 from datetime import datetime
+import uuid
 from  utils import *
 
 app = Flask(__name__)
@@ -144,6 +145,8 @@ def ingest_event():
     if msg:
         return error(msg)
 
+    print(f"[DEBUG] Received event data: {data}")
+
     db = get_db()
 
     upsert_merchant(db, data)
@@ -157,8 +160,11 @@ def ingest_event():
         "currency": data["currency"]
     }
     
+    # Generate event_id if not provided
     if 'event_id' in data:
         event_data['event_id'] = data['event_id']
+    else:
+        event_data['event_id'] = str(uuid.uuid4())
     
     if 'timestamp' in data and data['timestamp']:
         parsed_ts = parse_date(data['timestamp'])
@@ -166,12 +172,14 @@ def ingest_event():
             event_data['timestamp'] = parsed_ts
 
     event = Event(**event_data)
-    print(event)
+    print(f"[DEBUG] Created event object: event_id={event.event_id}, txn_id={event.transaction_id}, type={event.event_type}")
+    
     try:
         db.add(event)
-        db.flush()  
-    except IntegrityError:
-        db.add(event)
+        db.flush()
+        print(f"[DEBUG] Event inserted successfully: {event.event_id}")
+    except IntegrityError as e:
+        print(f"[DEBUG] IntegrityError caught: {e}")
         db.rollback()
 
         existing = db.query(Event).filter_by(
@@ -179,16 +187,18 @@ def ingest_event():
             event_type=data["event_type"]
         ).first()
 
+        print(f"[DEBUG] Found existing event: {existing.event_id if existing else None}")
         return success(
             data={"event_id": existing.event_id if existing else None},
             message="duplicate ignored"
         )
 
-    
+    print(f"[DEBUG] Upserting transaction for txn_id: {data['transaction_id']}")
     upsert_transaction(db, data)
 
     
     db.commit()
+    print(f"[DEBUG] Transaction committed successfully")
 
     return success(
         data={
